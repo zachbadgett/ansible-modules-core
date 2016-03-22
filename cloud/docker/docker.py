@@ -266,6 +266,7 @@ options:
       - present
       - started
       - reloaded
+      - reloaded-stopped
       - restarted
       - stopped
       - killed
@@ -1788,6 +1789,22 @@ def reloaded(manager, containers, count, name):
 
     started(manager, containers, count, name)
 
+def reloaded_stopped(manager, containers, count, name):
+    '''
+    Ensure that exactly `count` matching containers exist and are
+    running. If any associated settings have been changed (volumes,
+    ports or so on), restart those containers.
+    '''
+
+    containers.refresh()
+
+    for container in manager.get_differing_containers():
+        manager.stop_containers([container])
+        manager.remove_containers([container])
+
+    present(manager, containers, count, name)
+    stopped(manager, containers, count, name)
+
 def restarted(manager, containers, count, name):
     '''
     Ensure that exactly `count` matching containers exist and are
@@ -1866,7 +1883,7 @@ def main():
             env_file        = dict(default=None),
             dns             = dict(),
             detach          = dict(default=True, type='bool'),
-            state           = dict(default='started', choices=['present', 'started', 'reloaded', 'restarted', 'stopped', 'killed', 'absent', 'running']),
+            state           = dict(default='started', choices=['present', 'started', 'reloaded', 'reloaded-stopped', 'restarted', 'stopped', 'killed', 'absent', 'running']),
             signal          = dict(default=None),
             restart_policy  = dict(default=None, choices=['always', 'on-failure', 'no', 'unless-stopped']),
             restart_policy_retry = dict(default=0, type='int'),
@@ -1933,6 +1950,8 @@ def main():
             started(manager, containers, count, name)
         elif state == 'reloaded':
             reloaded(manager, containers, count, name)
+        elif state == 'reloaded-stopped':
+            reloaded_stopped(manager, containers, count, name)
         elif state == 'restarted':
             restarted(manager, containers, count, name)
         elif state == 'stopped':
@@ -1943,7 +1962,7 @@ def main():
             absent(manager, containers, count, name)
         else:
             module.fail_json(msg='Unrecognized state %s. Must be one of: '
-                                 'present; started; reloaded; restarted; '
+                                 'present; started; reloaded; reloaded-stopped; restarted; '
                                  'stopped; killed; absent.' % state)
 
         module.exit_json(changed=manager.has_changed(),
